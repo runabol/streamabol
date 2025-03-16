@@ -9,8 +9,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	ffmpeg_go "github.com/u2takey/ffmpeg-go"
+	ffmpego "github.com/u2takey/ffmpeg-go"
 )
 
 func Segment(w http.ResponseWriter, r *http.Request) {
@@ -52,10 +53,10 @@ func Segment(w http.ResponseWriter, r *http.Request) {
 
 func encodeChunk(src, outputPath string, startTime int, duration int) error {
 	log.Debug().Msgf("Encoding %s: start=%d, duration=%d", outputPath, startTime, duration)
-	cmd := ffmpeg_go.Input(src, ffmpeg_go.KwArgs{
+	cmd := ffmpego.Input(src, ffmpego.KwArgs{
 		"ss": startTime, // Seek to start time
 	}).
-		Output(outputPath, ffmpeg_go.KwArgs{
+		Output(outputPath, ffmpego.KwArgs{
 			"t":                duration,
 			"c:v":              "libx264",
 			"preset":           "ultrafast",
@@ -71,8 +72,7 @@ func encodeChunk(src, outputPath string, startTime int, duration int) error {
 	err := cmd.Run()
 	if err != nil {
 		log.Error().Err(err).Msgf("Encode chunk error: %v", err)
-	} else {
-		log.Debug().Msgf("Successfully encoded %s", outputPath)
+		return errors.Wrapf(err, "Failed to encode chunk: %s", outputPath)
 	}
-	return err
+	return nil
 }

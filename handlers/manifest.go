@@ -13,7 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	ffmpeg_go "github.com/u2takey/ffmpeg-go"
+	ffmpego "github.com/u2takey/ffmpeg-go"
 )
 
 var baseDir = path.Join(os.TempDir(), "streamabol")
@@ -132,7 +132,7 @@ func generatePlaylist(src, outputDir, hash string) error {
 }
 
 func getDuration(src string) (float64, error) {
-	output, err := ffmpeg_go.Probe(src)
+	output, err := ffmpego.Probe(src)
 	if err != nil {
 		log.Error().Err(err).Msgf("Probe error: %v", err)
 		return 0, err
