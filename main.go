@@ -19,7 +19,7 @@ func main() {
 	mux.HandleFunc("/manifest", handlers.Manifest)
 	mux.HandleFunc("/playlist/", handlers.Playlist)
 	mux.HandleFunc("/segment/", handlers.Segment)
-	handler := handlers.CORSMiddleware(mux)
+	handler := handlers.CORSMiddleware(handlers.LoggerMiddleware(mux))
 	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start server")
 	}

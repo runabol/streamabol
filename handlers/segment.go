@@ -16,9 +16,6 @@ import (
 func Segment(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/segment")
 	fullPath := fmt.Sprintf("%s%s", baseDir, path)
-
-	log.Debug().Msgf("Requested: %s", fullPath)
-
 	w.Header().Set("Content-Type", "video/mp2t")
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		re := regexp.MustCompile(`/([0-9a-f]{32})/v0/(\d+)\.ts`)
