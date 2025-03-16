@@ -15,7 +15,7 @@ import (
 
 func main() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/video", handlers.Video)
+	mux.HandleFunc("/manifest", handlers.Manifest)
 	mux.HandleFunc("/streams/", serveHLSFiles)
 	handler := handlers.CORSMiddleware(mux)
 	log.Fatal(http.ListenAndServe(":8080", handler))

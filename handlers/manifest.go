@@ -32,7 +32,7 @@ type ProbeResult struct {
 	Format  FormatInfo   `json:"format"`
 }
 
-func Video(w http.ResponseWriter, r *http.Request) {
+func Manifest(w http.ResponseWriter, r *http.Request) {
 	src := r.URL.Query().Get("src")
 	if src == "" {
 		http.Error(w, "Missing src parameter", http.StatusBadRequest)
