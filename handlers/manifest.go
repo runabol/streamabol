@@ -8,13 +8,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
 )
 
-const baseDir = "/tmp/streamabol"
+var baseDir = path.Join(os.TempDir(), "streamabol")
 
 type StreamInfo struct {
 	Duration string `json:"duration"`

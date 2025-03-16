@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
 )
 
@@ -17,7 +17,7 @@ func Segment(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/segment")
 	fullPath := fmt.Sprintf("%s%s", baseDir, path)
 
-	log.Printf("Requested: %s", fullPath)
+	log.Debug().Msgf("Requested: %s", fullPath)
 
 	w.Header().Set("Content-Type", "video/mp2t")
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
@@ -27,7 +27,7 @@ func Segment(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid segment path", http.StatusBadRequest)
 			return
 		}
-		hash := matches[1] // MD5 hash from URL
+		hash := matches[1]
 		segNum, _ := strconv.Atoi(matches[2])
 		startTime := segNum * 4
 		duration := 4
@@ -43,7 +43,7 @@ func Segment(w http.ResponseWriter, r *http.Request) {
 		segDir := filepath.Dir(fullPath)
 		os.MkdirAll(segDir, 0755)
 
-		log.Printf("Encoding chunk: %s (start: %d, duration: %d)", fullPath, startTime, duration)
+		log.Debug().Msgf("Encoding chunk: %s (start: %d, duration: %d)", fullPath, startTime, duration)
 		err = encodeChunk(string(src), fullPath, startTime, duration)
 		if err != nil {
 			http.Error(w, "Failed to encode chunk", http.StatusInternalServerError)
@@ -54,7 +54,7 @@ func Segment(w http.ResponseWriter, r *http.Request) {
 }
 
 func encodeChunk(src, outputPath string, startTime int, duration int) error {
-	log.Printf("Encoding %s: start=%d, duration=%d", outputPath, startTime, duration)
+	log.Debug().Msgf("Encoding %s: start=%d, duration=%d", outputPath, startTime, duration)
 	cmd := ffmpeg_go.Input(src, ffmpeg_go.KwArgs{
 		"ss": startTime, // Seek to start time
 	}).
@@ -70,12 +70,12 @@ func encodeChunk(src, outputPath string, startTime int, duration int) error {
 		}).
 		OverWriteOutput()
 
-	log.Printf("FFmpeg command: %s", cmd.String())
+	log.Debug().Msgf("FFmpeg command: %s", cmd.String())
 	err := cmd.Run()
 	if err != nil {
-		log.Printf("Encode chunk error: %v", err)
+		log.Error().Err(err).Msgf("Encode chunk error: %v", err)
 	} else {
-		log.Printf("Successfully encoded %s", outputPath)
+		log.Debug().Msgf("Successfully encoded %s", outputPath)
 	}
 	return err
 }
