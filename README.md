@@ -75,7 +75,7 @@ export SECRET_KEY="7f9c2ba4e8b9d3f0c1e5a7b6d8f9e0c2a3b4c5d6e7f8a9b0c1d2e3f4a5b6d
 ## Prerequisites
 - [FFmpeg](https://ffmpeg.org/download.html) installed on your system (used for video processing)
 
-## Installation
+## Build from source
 1. Clone the repository:
    ```bash
    git clone https://github.com/runabol/streamabol.git
