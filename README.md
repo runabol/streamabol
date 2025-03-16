@@ -9,7 +9,6 @@ Streamabol is a lightweight Golang application that converts video files into HL
 - Lightweight and efficient, built with Go
 
 ## Prerequisites
-- [Go](https://golang.org/dl/) (version 1.18 or higher)
 - [FFmpeg](https://ffmpeg.org/download.html) installed on your system (used for video processing)
 
 ## Installation
