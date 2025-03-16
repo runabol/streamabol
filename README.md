@@ -4,6 +4,13 @@ Streamabol is a lightweight Golang application that converts video files into HL
 
 ![Player](screenshot_v2.jpg)
 
+## Features
+- Converts video files to HLS streams dynamically
+- Supports remote video URLs as input
+- Simple HTTP API for generating HLS manifests
+- Lightweight and efficient, built with Go
+- Signed URLs to prevent tampering
+
 ## Quickstart
 
 To quickly get started with Streamabol, you can use the prebuilt Docker image:
@@ -17,13 +24,6 @@ Play a sample HLS stream:
 ```bash
 https://hls-player-demo.vercel.app?src=http://localhost:8080/manifest.m3u8?src=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4
 ```
-
-## Features
-- Converts video files to HLS streams dynamically
-- Supports remote video URLs as input
-- Simple HTTP API for generating HLS manifests
-- Lightweight and efficient, built with Go
-- Signed URLs to prevent tampering
 
 ## URL Signing (Optional)
 
