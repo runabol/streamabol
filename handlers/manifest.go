@@ -1,38 +1,11 @@
 package handlers
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path"
-	"strconv"
-	"strings"
 
-	"github.com/pkg/errors"
-	"github.com/rs/zerolog/log"
-	ffmpego "github.com/u2takey/ffmpeg-go"
+	"github.com/runabol/streamabol/stream"
 )
-
-var baseDir = path.Join(os.TempDir(), "streamabol")
-
-type StreamInfo struct {
-	Duration string `json:"duration"`
-	Codec    string `json:"codec_name"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-}
-
-type FormatInfo struct {
-	Duration string `json:"duration"`
-}
-
-type ProbeResult struct {
-	Streams []StreamInfo `json:"streams"`
-	Format  FormatInfo   `json:"format"`
-}
 
 // Manifest generates HLS playlists for the given video source
 // and returns the master playlist
@@ -43,111 +16,11 @@ func Manifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	checksum := md5.Sum([]byte(src))
-	hash := hex.EncodeToString(checksum[:]) // 32-char hex string
-	outputDir := fmt.Sprintf("%s/%s", baseDir, hash)
-	sourceFile := path.Join(outputDir, "source.txt")
-
-	// Check if we've already processed this src
-	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
-		// Store the URL in the output directory
-		err = os.MkdirAll(outputDir, 0755)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to create directory: %v", err), http.StatusInternalServerError)
-			return
-		}
-		// Write the source URL to a file
-		if err := os.WriteFile(sourceFile, []byte(src), 0644); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to write source file: %v", err), http.StatusInternalServerError)
-			return
-		}
-		// Generate playlists
-		if err := generatePlaylist(src, outputDir, hash); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to process video: %v", err), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-
-	http.ServeFile(w, r, outputDir+"/master.m3u8")
-}
-
-func generatePlaylist(src, outputDir, hash string) error {
-	duration, err := getDuration(src)
+	manifest, err := stream.GetManifest(src)
 	if err != nil {
-		return err
+		http.Error(w, fmt.Sprintf("Failed to generate manifest: %v", err), http.StatusInternalServerError)
+		return
 	}
 
-	if err := os.MkdirAll(outputDir+"/v0", 0755); err != nil {
-		return errors.Wrapf(err, "Failed to create directory: %s", outputDir+"/v0")
-	}
-
-	// Write master.m3u8 with relative path
-	masterContent := fmt.Sprintf(`#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-STREAM-INF:BANDWIDTH=561911,AVERAGE-BANDWIDTH=497690,RESOLUTION=640x360,CODECS="avc1.64001e,mp4a.40.2"
-/playlist/%s/v0.m3u8
-`, hash)
-	if err := os.WriteFile(outputDir+"/master.m3u8", []byte(masterContent), 0644); err != nil {
-		log.Printf("Error writing master.m3u8: %v", err)
-		return err
-	}
-
-	// Generate v0.m3u8 with segment entries
-	segmentDuration := 4.0
-	numSegments := int(duration / segmentDuration)
-	if duration-float64(numSegments)*segmentDuration > 0 {
-		numSegments++
-	}
-
-	var v0Content strings.Builder
-	v0Content.WriteString("#EXTM3U\n")
-	v0Content.WriteString("#EXT-X-VERSION:3\n")
-	v0Content.WriteString("#EXT-X-TARGETDURATION:4\n")
-	v0Content.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
-	v0Content.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
-
-	for i := 0; i < numSegments; i++ {
-		remaining := duration - float64(i)*segmentDuration
-		segDur := segmentDuration
-		if remaining < segmentDuration {
-			segDur = remaining
-		}
-		if _, err := v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n"); err != nil {
-			return errors.Wrapf(err, "Failed to write segment duration: %v", err)
-		}
-		if _, err := v0Content.WriteString(fmt.Sprintf("/segment/%s/v0/%d.ts\n", hash, i)); err != nil {
-			return errors.Wrapf(err, "Failed to write segment entry: %v", err)
-		}
-	}
-	v0Content.WriteString("#EXT-X-ENDLIST\n")
-
-	if err := os.WriteFile(outputDir+"/v0.m3u8", []byte(v0Content.String()), 0644); err != nil {
-		return errors.Wrapf(err, "Failed to write manifest file: %v", err)
-	}
-
-	log.Printf("Generated playlists in %s for src=%s", outputDir, src)
-	return nil
-}
-
-func getDuration(src string) (float64, error) {
-	output, err := ffmpego.Probe(src)
-	if err != nil {
-		log.Error().Err(err).Msgf("Probe error: %v", err)
-		return 0, err
-	}
-
-	var result ProbeResult
-	if err := json.Unmarshal([]byte(output), &result); err != nil {
-		log.Error().Err(err).Msgf("Unmarshal error: %v", err)
-		return 0, err
-	}
-
-	duration, err := strconv.ParseFloat(result.Format.Duration, 64)
-	if err != nil {
-		log.Error().Err(err).Msgf("Duration parse error: %v", err)
-		return 0, err
-	}
-	return duration, nil
+	http.ServeFile(w, r, manifest)
 }
