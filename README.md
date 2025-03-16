@@ -2,6 +2,8 @@
 
 Streamabol is a lightweight Golang application that converts video files into HLS (HTTP Live Streaming) streams on the fly. It takes a video URL as input and generates an HLS-compliant manifest (`.m3u8`) along with segmented video streams, making it ideal for real-time video streaming applications.
 
+![Player](screenshot.jpg)
+
 ## Quickstart
 
 To quickly get started with Streamabol, you can use the prebuilt Docker image:
