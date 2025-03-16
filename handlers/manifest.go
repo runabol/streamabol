@@ -89,7 +89,7 @@ func generateHLS(src, outputDir, hash string) error {
 	}
 
 	// Generate v0.m3u8 with segment entries
-	segmentDuration := 10.0
+	segmentDuration := 4.0
 	numSegments := int(duration / segmentDuration)
 	if duration-float64(numSegments)*segmentDuration > 0 {
 		numSegments++
@@ -98,7 +98,7 @@ func generateHLS(src, outputDir, hash string) error {
 	var v0Content strings.Builder
 	v0Content.WriteString("#EXTM3U\n")
 	v0Content.WriteString("#EXT-X-VERSION:3\n")
-	v0Content.WriteString("#EXT-X-TARGETDURATION:10\n")
+	v0Content.WriteString("#EXT-X-TARGETDURATION:4\n")
 	v0Content.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
 	v0Content.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
 
