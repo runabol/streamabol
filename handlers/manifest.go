@@ -62,19 +62,18 @@ func Manifest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Generate playlists
-		if err := generateHLS(src, outputDir, hash); err != nil {
+		if err := generatePlaylist(src, outputDir, hash); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to process video: %v", err), http.StatusInternalServerError)
 			return
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+
 	http.ServeFile(w, r, outputDir+"/master.m3u8")
 }
 
-// generateHLS generates HLS playlists for the given video source
-// and writes them to the output directory
-func generateHLS(src, outputDir, hash string) error {
+func generatePlaylist(src, outputDir, hash string) error {
 	duration, err := getDuration(src)
 	if err != nil {
 		return err
@@ -115,15 +114,17 @@ func generateHLS(src, outputDir, hash string) error {
 		if remaining < segmentDuration {
 			segDur = remaining
 		}
-		v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n")
-		v0Content.WriteString(fmt.Sprintf("/segment/%s/v0/%d.ts\n", hash, i))
+		if _, err := v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n"); err != nil {
+			return errors.Wrapf(err, "Failed to write segment duration: %v", err)
+		}
+		if _, err := v0Content.WriteString(fmt.Sprintf("/segment/%s/v0/%d.ts\n", hash, i)); err != nil {
+			return errors.Wrapf(err, "Failed to write segment entry: %v", err)
+		}
 	}
 	v0Content.WriteString("#EXT-X-ENDLIST\n")
 
-	err = os.WriteFile(outputDir+"/v0.m3u8", []byte(v0Content.String()), 0644)
-	if err != nil {
-		log.Printf("Error writing v0.m3u8: %v", err)
-		return err
+	if err := os.WriteFile(outputDir+"/v0.m3u8", []byte(v0Content.String()), 0644); err != nil {
+		return errors.Wrapf(err, "Failed to write manifest file: %v", err)
 	}
 
 	log.Printf("Generated playlists in %s for src=%s", outputDir, src)
