@@ -93,27 +93,5 @@ export SECRET_KEY="7f9c2ba4e8b9d3f0c1e5a7b6d8f9e0c2a3b4c5d6e7f8a9b0c1d2e3f4a5b6d
    go build -o streamabol
    ```
 
-## Usage
-1. Start the server:
-   ```bash
-   ./streamabol
-   ```
-   The server will run on `http://localhost:8080` by default.
-
-2. Request an HLS stream by providing a video URL:
-   ```
-   http://localhost:8080/manifest.m3u8?src=https://example.com/myvideo.mp4
-   ```
-   - `src`: The URL of the video file to convert (e.g., `.mp4`, `.mov`, etc.)
-   - Response: An HLS manifest (`.m3u8`) with segmented streams generated on the fly.
-
-3. Use the generated `.m3u8` URL in an HLS-compatible player (e.g., [HLS.js](https://hlsjs.video-dev.org/)).
-
-## Example
-```bash
-curl "http://localhost:8080/manifest.m3u8?src=https://example.com/myvideo.mp4"
-```
-This will return an HLS manifest that points to the segmented video streams processed by Streamabol.
-
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
