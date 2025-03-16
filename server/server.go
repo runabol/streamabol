@@ -1,4 +1,4 @@
-package handlers
+package server
 
 import (
 	"fmt"
@@ -10,10 +10,29 @@ import (
 	"github.com/runabol/streamabol/stream"
 )
 
+type Server struct {
+	Addr string
+}
+
+func NewServer(addr string) *Server {
+	return &Server{
+		Addr: addr,
+	}
+}
+
+func (s *Server) Start() error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/manifest.m3u8", s.Manifest)
+	mux.HandleFunc("/playlist/", s.Playlist)
+	mux.HandleFunc("/segment/", s.Segment)
+	handler := CORSMiddleware(LoggerMiddleware(mux))
+	return http.ListenAndServe(s.Addr, handler)
+}
+
 // Manifest handles requests for HLS manifest files
 // It generates a manifest file for the given source
 // and serves it to the client
-func Manifest(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Manifest(w http.ResponseWriter, r *http.Request) {
 	src := r.URL.Query().Get("src")
 	if src == "" {
 		http.Error(w, "Missing src parameter", http.StatusBadRequest)
@@ -28,7 +47,7 @@ func Manifest(w http.ResponseWriter, r *http.Request) {
 }
 
 // Playlist handles requests for HLS playlist files
-func Playlist(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Playlist(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/playlist"), "/v0.m3u8")
 	playlist, error := stream.GetPlaylist(id)
 	if error != nil {
@@ -40,7 +59,7 @@ func Playlist(w http.ResponseWriter, r *http.Request) {
 }
 
 // Segment handles requests for HLS segment files
-func Segment(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Segment(w http.ResponseWriter, r *http.Request) {
 	re := regexp.MustCompile(`/segment/([0-9a-f]{32})/v0/(\d+)\.ts`)
 	matches := re.FindStringSubmatch(r.URL.Path)
 	if len(matches) < 3 {
