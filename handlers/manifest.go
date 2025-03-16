@@ -14,7 +14,7 @@ import (
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
 )
 
-const baseDir = "/tmp/streams" // Adjust as needed
+const baseDir = "/tmp/streamabol"
 
 type StreamInfo struct {
 	Duration string `json:"duration"`
@@ -81,10 +81,9 @@ func generateHLS(src, outputDir, hash string) error {
 	masterContent := fmt.Sprintf(`#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-STREAM-INF:BANDWIDTH=561911,AVERAGE-BANDWIDTH=497690,RESOLUTION=640x360,CODECS="avc1.64001e,mp4a.40.2"
-/streams/%s/v0.m3u8
+/playlist/%s/v0.m3u8
 `, hash)
-	err = os.WriteFile(outputDir+"/master.m3u8", []byte(masterContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(outputDir+"/master.m3u8", []byte(masterContent), 0644); err != nil {
 		log.Printf("Error writing master.m3u8: %v", err)
 		return err
 	}
@@ -110,7 +109,7 @@ func generateHLS(src, outputDir, hash string) error {
 			segDur = remaining
 		}
 		v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n")
-		v0Content.WriteString(fmt.Sprintf("/streams/%s/v0/segment%d.ts\n", hash, i))
+		v0Content.WriteString(fmt.Sprintf("/playlist/%s/v0/segment%d.ts\n", hash, i))
 	}
 	v0Content.WriteString("#EXT-X-ENDLIST\n")
 
