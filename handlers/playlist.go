@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Playlist handles requests for HLS playlist files
 func Playlist(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/playlist")
 	fullPath := fmt.Sprintf("%s%s", baseDir, path)

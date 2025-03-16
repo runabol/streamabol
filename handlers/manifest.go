@@ -5,13 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
 )
 
@@ -33,6 +34,8 @@ type ProbeResult struct {
 	Format  FormatInfo   `json:"format"`
 }
 
+// Manifest generates HLS playlists for the given video source
+// and returns the master playlist
 func Manifest(w http.ResponseWriter, r *http.Request) {
 	src := r.URL.Query().Get("src")
 	if src == "" {
@@ -40,9 +43,10 @@ func Manifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hash := hashSrc(src)
-	outputDir := baseDir + "/" + hash
-	sourceFile := outputDir + "/source.txt"
+	checksum := md5.Sum([]byte(src))
+	hash := hex.EncodeToString(checksum[:]) // 32-char hex string
+	outputDir := fmt.Sprintf("%s/%s", baseDir, hash)
+	sourceFile := path.Join(outputDir, "source.txt")
 
 	// Check if we've already processed this src
 	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
@@ -52,15 +56,13 @@ func Manifest(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Failed to create directory: %v", err), http.StatusInternalServerError)
 			return
 		}
-		err = os.WriteFile(sourceFile, []byte(src), 0644)
-		if err != nil {
+		// Write the source URL to a file
+		if err := os.WriteFile(sourceFile, []byte(src), 0644); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to write source file: %v", err), http.StatusInternalServerError)
 			return
 		}
-
 		// Generate playlists
-		err = generateHLS(src, outputDir, hash)
-		if err != nil {
+		if err := generateHLS(src, outputDir, hash); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to process video: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -70,13 +72,17 @@ func Manifest(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, outputDir+"/master.m3u8")
 }
 
+// generateHLS generates HLS playlists for the given video source
+// and writes them to the output directory
 func generateHLS(src, outputDir, hash string) error {
-	duration, err := probeVideo(src)
+	duration, err := getDuration(src)
 	if err != nil {
 		return err
 	}
 
-	os.MkdirAll(outputDir+"/v0", 0755)
+	if err := os.MkdirAll(outputDir+"/v0", 0755); err != nil {
+		return errors.Wrapf(err, "Failed to create directory: %s", outputDir+"/v0")
+	}
 
 	// Write master.m3u8 with relative path
 	masterContent := fmt.Sprintf(`#EXTM3U
@@ -124,30 +130,23 @@ func generateHLS(src, outputDir, hash string) error {
 	return nil
 }
 
-func probeVideo(src string) (float64, error) {
+func getDuration(src string) (float64, error) {
 	output, err := ffmpeg_go.Probe(src)
 	if err != nil {
-		log.Printf("Probe error: %v", err)
+		log.Error().Err(err).Msgf("Probe error: %v", err)
 		return 0, err
 	}
 
 	var result ProbeResult
-	err = json.Unmarshal([]byte(output), &result)
-	if err != nil {
-		log.Printf("Unmarshal error: %v", err)
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		log.Error().Err(err).Msgf("Unmarshal error: %v", err)
 		return 0, err
 	}
 
 	duration, err := strconv.ParseFloat(result.Format.Duration, 64)
 	if err != nil {
-		log.Printf("Duration parse error: %v", err)
+		log.Error().Err(err).Msgf("Duration parse error: %v", err)
 		return 0, err
 	}
-	log.Printf("Video duration: %.2f seconds", duration)
 	return duration, nil
-}
-
-func hashSrc(src string) string {
-	hash := md5.Sum([]byte(src))
-	return hex.EncodeToString(hash[:]) // 32-char hex string
 }
