@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -59,56 +58,32 @@ func videoHandler(w http.ResponseWriter, r *http.Request) {
 
 	hash := hashSrc(src)
 	outputDir := baseDir + "/" + hash
-	inputPath := outputDir + "/input.mp4"
+	sourceFile := outputDir + "/source.txt"
 
 	// Check if we've already processed this src
-	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
-		err = fetchVideo(src, inputPath) // Download directly to inputPath
+	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
+		// Store the URL in the output directory
+		err = os.MkdirAll(outputDir, 0755)
 		if err != nil {
-			http.Error(w, "Failed to fetch video: %v", http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to create directory: %v", err), http.StatusInternalServerError)
+			return
+		}
+		err = os.WriteFile(sourceFile, []byte(src), 0644)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to write source file: %v", err), http.StatusInternalServerError)
 			return
 		}
 
 		// Generate playlists
-		err = generateHLS(inputPath, baseDir, src)
+		err = generateHLS(src, outputDir, hash)
 		if err != nil {
-			http.Error(w, "Failed to process video: %v", http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to process video: %v", err), http.StatusInternalServerError)
 			return
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	http.ServeFile(w, r, outputDir+"/master.m3u8")
-}
-
-func fetchVideo(src, outputPath string) error {
-	resp, err := http.Get(src)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Ensure the directory exists
-	err = os.MkdirAll(filepath.Dir(outputPath), 0755)
-	if err != nil {
-		return err
-	}
-
-	// Create the output file
-	out, err := os.Create(outputPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Download directly to outputPath
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("Downloaded %s to %s", src, outputPath)
-	return nil
 }
 
 type StreamInfo struct {
@@ -127,8 +102,8 @@ type ProbeResult struct {
 	Format  FormatInfo   `json:"format"`
 }
 
-func probeVideo(inputPath string) (float64, error) {
-	output, err := ffmpeg_go.Probe(inputPath)
+func probeVideo(src string) (float64, error) {
+	output, err := ffmpeg_go.Probe(src)
 	if err != nil {
 		log.Printf("Probe error: %v", err)
 		return 0, err
@@ -150,15 +125,12 @@ func probeVideo(inputPath string) (float64, error) {
 	return duration, nil
 }
 
-func generateHLS(inputPath string, baseDir string, src string) error {
-	duration, err := probeVideo(inputPath)
+func generateHLS(src, outputDir, hash string) error {
+	duration, err := probeVideo(src)
 	if err != nil {
 		return err
 	}
 
-	// Use MD5 hash of src as folder name
-	hash := hashSrc(src)
-	outputDir := baseDir + "/" + hash
 	os.MkdirAll(outputDir+"/v0", 0755)
 
 	// Write master.m3u8 with relative path
@@ -238,10 +210,11 @@ func serveHLSFiles(w http.ResponseWriter, r *http.Request) {
 			startTime := segNum * 10
 			duration := 10
 
-			// Use hash to locate input file
-			inputPath := "/tmp/streams/" + hash + "/input.mp4"
-			if _, err := os.Stat(inputPath); os.IsNotExist(err) {
-				http.Error(w, "Source video not found", http.StatusInternalServerError)
+			// Read the source URL from source.txt
+			sourceFile := "/tmp/streams/" + hash + "/source.txt"
+			src, err := os.ReadFile(sourceFile)
+			if err != nil {
+				http.Error(w, "Source URL not found", http.StatusInternalServerError)
 				return
 			}
 
@@ -249,7 +222,7 @@ func serveHLSFiles(w http.ResponseWriter, r *http.Request) {
 			os.MkdirAll(segDir, 0755)
 
 			log.Printf("Encoding chunk: %s (start: %d, duration: %d)", fullPath, startTime, duration)
-			err = encodeChunk(inputPath, fullPath, startTime, duration)
+			err = encodeChunk(string(src), fullPath, startTime, duration)
 			if err != nil {
 				http.Error(w, "Failed to encode chunk", http.StatusInternalServerError)
 				return
@@ -262,9 +235,9 @@ func serveHLSFiles(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not found", http.StatusNotFound)
 }
 
-func encodeChunk(inputPath, outputPath string, startTime int, duration int) error {
+func encodeChunk(src, outputPath string, startTime int, duration int) error {
 	log.Printf("Encoding %s: start=%d, duration=%d", outputPath, startTime, duration)
-	cmd := ffmpeg_go.Input(inputPath, ffmpeg_go.KwArgs{
+	cmd := ffmpeg_go.Input(src, ffmpeg_go.KwArgs{
 		"ss": startTime, // Seek to start time
 	}).
 		Output(outputPath, ffmpeg_go.KwArgs{

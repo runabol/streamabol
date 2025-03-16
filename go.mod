@@ -1,4 +1,4 @@
-module github.com/runabol/reelproxy
+module github.com/runabol/streamabol
 
 go 1.22.0
 
