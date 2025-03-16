@@ -11,13 +11,8 @@ import (
 )
 
 type Server struct {
-	Addr string
-}
-
-func NewServer(addr string) *Server {
-	return &Server{
-		Addr: addr,
-	}
+	Address   string
+	SecretKey string
 }
 
 func (s *Server) Start() error {
@@ -25,20 +20,26 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/manifest.m3u8", s.Manifest)
 	mux.HandleFunc("/playlist/", s.Playlist)
 	mux.HandleFunc("/segment/", s.Segment)
-	handler := CORSMiddleware(LoggerMiddleware(mux))
-	return http.ListenAndServe(s.Addr, handler)
+	handler := CORSMiddleware(
+		NewHMACMiddleware(s.SecretKey).Handle(LoggerMiddleware(mux)),
+	)
+	return http.ListenAndServe(s.Address, handler)
 }
 
 // Manifest handles requests for HLS manifest files
 // It generates a manifest file for the given source
 // and serves it to the client
 func (s *Server) Manifest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	src := r.URL.Query().Get("src")
 	if src == "" {
 		http.Error(w, "Missing src parameter", http.StatusBadRequest)
 		return
 	}
-	manifest, err := stream.GetManifest(src)
+	manifest, err := stream.GetManifest(src, s.SecretKey)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to generate manifest: %v", err), http.StatusInternalServerError)
 		return
@@ -48,6 +49,10 @@ func (s *Server) Manifest(w http.ResponseWriter, r *http.Request) {
 
 // Playlist handles requests for HLS playlist files
 func (s *Server) Playlist(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/playlist"), "/v0.m3u8")
 	playlist, error := stream.GetPlaylist(id)
 	if error != nil {
@@ -60,6 +65,10 @@ func (s *Server) Playlist(w http.ResponseWriter, r *http.Request) {
 
 // Segment handles requests for HLS segment files
 func (s *Server) Segment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	re := regexp.MustCompile(`/segment/([0-9a-f]{32})/v0/(\d+)\.ts`)
 	matches := re.FindStringSubmatch(r.URL.Path)
 	if len(matches) < 3 {

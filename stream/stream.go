@@ -13,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"github.com/runabol/streamabol/hmac"
 	ffmpego "github.com/u2takey/ffmpeg-go"
 )
 
@@ -34,7 +35,7 @@ type probeResult struct {
 	Format  formatInfo   `json:"format"`
 }
 
-func GetManifest(src string) (string, error) {
+func GetManifest(src, secretKey string) (string, error) {
 	checksum := md5.Sum([]byte(src))
 	hash := hex.EncodeToString(checksum[:]) // 32-char hex string
 	outputDir := fmt.Sprintf("%s/%s", baseDir, hash)
@@ -47,7 +48,7 @@ func GetManifest(src string) (string, error) {
 			return "", errors.Wrapf(err, "Failed to create directory")
 		}
 		// Generate playlists
-		if err := generatePlaylist(src, outputDir, hash); err != nil {
+		if err := generatePlaylist(src, outputDir, hash, secretKey); err != nil {
 			return "", errors.Wrapf(err, "Failed to generate playlist")
 		}
 		// Write the source URL to a file
@@ -67,7 +68,7 @@ func GetPlaylist(id string) (string, error) {
 	return fullPath, nil
 }
 
-func generatePlaylist(src, outputDir, hash string) error {
+func generatePlaylist(src, outputDir, hash, secretKey string) error {
 	duration, err := getDuration(src)
 	if err != nil {
 		return err
@@ -77,12 +78,13 @@ func generatePlaylist(src, outputDir, hash string) error {
 		return errors.Wrapf(err, "Failed to create directory: %s", outputDir+"/v0")
 	}
 
+	signature := hmac.Generate(fmt.Sprintf("/playlist/%s/v0.m3u8", hash), secretKey)
 	// Write master.m3u8 with relative path
 	masterContent := fmt.Sprintf(`#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-STREAM-INF:BANDWIDTH=561911,AVERAGE-BANDWIDTH=497690,RESOLUTION=640x360,CODECS="avc1.64001e,mp4a.40.2"
-/playlist/%s/v0.m3u8
-`, hash)
+/playlist/%s/v0.m3u8?hmac=%s
+`, hash, signature)
 	if err := os.WriteFile(outputDir+"/master.m3u8", []byte(masterContent), 0644); err != nil {
 		log.Printf("Error writing master.m3u8: %v", err)
 		return err
@@ -111,7 +113,8 @@ func generatePlaylist(src, outputDir, hash string) error {
 		if _, err := v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n"); err != nil {
 			return errors.Wrapf(err, "Failed to write segment duration: %v", err)
 		}
-		if _, err := v0Content.WriteString(fmt.Sprintf("/segment/%s/v0/%d.ts\n", hash, i)); err != nil {
+		signature := hmac.Generate(fmt.Sprintf("/segment/%s/v0/%d.ts", hash, i), secretKey)
+		if _, err := v0Content.WriteString(fmt.Sprintf("/segment/%s/v0/%d.ts?hmac=%s\n", hash, i, signature)); err != nil {
 			return errors.Wrapf(err, "Failed to write segment entry: %v", err)
 		}
 	}

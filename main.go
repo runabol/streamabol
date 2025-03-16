@@ -17,7 +17,10 @@ func main() {
 		address = "0.0.0.0:8080"
 	}
 	log.Info().Msgf("Starting server on %s", address)
-	srv := server.NewServer(":8080")
+	srv := server.Server{
+		Address:   address,
+		SecretKey: os.Getenv("SECRET_KEY"),
+	}
 	if err := srv.Start(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start server")
 	}
