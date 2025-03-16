@@ -1,29 +1,28 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
 )
 
-var streamCache = make(map[string]string)
+const baseDir = "/tmp/streams" // Adjust as needed
 
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/video", videoHandler)
-	mux.HandleFunc("/", serveHLSFiles) // Catch-all for .m3u8 and .ts
+	mux.HandleFunc("/streams/", serveHLSFiles)
 	handler := corsMiddleware(mux)
 	log.Fatal(http.ListenAndServe(":8080", handler))
 }
@@ -44,49 +43,72 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func videoHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	src := r.URL.Query().Get("src")
 	if src == "" {
 		http.Error(w, "Missing src parameter", http.StatusBadRequest)
 		return
 	}
 
-	outputDir, exists := streamCache[src]
-	if !exists {
-		inputPath, err := fetchVideo(src)
+	hash := hashSrc(src)
+	outputDir := baseDir + "/" + hash
+	inputPath := outputDir + "/input.mp4"
+
+	// Check if we've already processed this src
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		err = fetchVideo(src, inputPath) // Download directly to inputPath
 		if err != nil {
 			http.Error(w, "Failed to fetch video: %v", http.StatusInternalServerError)
 			return
 		}
-		outputDir = "/tmp/stream-" + randomString(8)
-		os.MkdirAll(outputDir, 0755)
-		err = generateHLS(inputPath, outputDir, src) // Pass src here
+
+		// Generate playlists
+		err = generateHLS(inputPath, baseDir, src)
 		if err != nil {
 			http.Error(w, "Failed to process video: %v", http.StatusInternalServerError)
 			return
 		}
-		streamCache[src] = outputDir
 	}
 
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	http.ServeFile(w, r, outputDir+"/master.m3u8")
 }
 
-func fetchVideo(url string) (string, error) {
-	resp, err := http.Get(url)
+func fetchVideo(src, outputPath string) error {
+	resp, err := http.Get(src)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer resp.Body.Close()
 
-	// Save to temporary file
-	tmpFile := "/tmp/video-" + randomString(8) + ".mp4"
-	out, err := os.Create(tmpFile)
+	// Ensure the directory exists
+	err = os.MkdirAll(filepath.Dir(outputPath), 0755)
 	if err != nil {
-		return "", err
+		return err
+	}
+
+	// Create the output file
+	out, err := os.Create(outputPath)
+	if err != nil {
+		return err
 	}
 	defer out.Close()
+
+	// Download directly to outputPath
 	_, err = io.Copy(out, resp.Body)
-	return tmpFile, err
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Downloaded %s to %s", src, outputPath)
+	return nil
 }
 
 type StreamInfo struct {
@@ -128,21 +150,23 @@ func probeVideo(inputPath string) (float64, error) {
 	return duration, nil
 }
 
-func generateHLS(inputPath string, outputDir string, src string) error {
+func generateHLS(inputPath string, baseDir string, src string) error {
 	duration, err := probeVideo(inputPath)
 	if err != nil {
 		return err
 	}
 
-	// Create directories
+	// Use MD5 hash of src as folder name
+	hash := hashSrc(src)
+	outputDir := baseDir + "/" + hash
 	os.MkdirAll(outputDir+"/v0", 0755)
 
-	// Write master.m3u8 with ?src query param
+	// Write master.m3u8 with relative path
 	masterContent := fmt.Sprintf(`#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-STREAM-INF:BANDWIDTH=561911,AVERAGE-BANDWIDTH=497690,RESOLUTION=640x360,CODECS="avc1.64001e,mp4a.40.2"
-v0.m3u8?src=%s
-`, url.QueryEscape(src)) // Escape src to handle special chars
+/streams/%s/v0.m3u8
+`, hash)
 	err = os.WriteFile(outputDir+"/master.m3u8", []byte(masterContent), 0644)
 	if err != nil {
 		log.Printf("Error writing master.m3u8: %v", err)
@@ -150,10 +174,10 @@ v0.m3u8?src=%s
 	}
 
 	// Generate v0.m3u8 with segment entries
-	segmentDuration := 10.0 // Fixed 10-second segments
+	segmentDuration := 10.0
 	numSegments := int(duration / segmentDuration)
 	if duration-float64(numSegments)*segmentDuration > 0 {
-		numSegments++ // Account for partial last segment
+		numSegments++
 	}
 
 	var v0Content strings.Builder
@@ -166,10 +190,10 @@ v0.m3u8?src=%s
 		remaining := duration - float64(i)*segmentDuration
 		segDur := segmentDuration
 		if remaining < segmentDuration {
-			segDur = remaining // Adjust last segment duration
+			segDur = remaining
 		}
 		v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n")
-		v0Content.WriteString(fmt.Sprintf("v0/segment%d.ts?src=%s\n", i, url.QueryEscape(src)))
+		v0Content.WriteString(fmt.Sprintf("/streams/%s/v0/segment%d.ts\n", hash, i))
 	}
 	v0Content.WriteString("#EXT-X-ENDLIST\n")
 
@@ -185,19 +209,8 @@ v0.m3u8?src=%s
 
 func serveHLSFiles(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	src := r.URL.Query().Get("src")
-	if src == "" {
-		http.Error(w, "Missing src parameter", http.StatusBadRequest)
-		return
-	}
+	fullPath := "/tmp" + path // Base path matches /tmp/streams/
 
-	outputDir, exists := streamCache[src]
-	if !exists {
-		http.Error(w, "Stream not found", http.StatusNotFound)
-		return
-	}
-
-	fullPath := outputDir + path
 	log.Printf("Requested: %s", fullPath)
 
 	if strings.HasSuffix(path, ".m3u8") {
@@ -213,19 +226,21 @@ func serveHLSFiles(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(path, ".ts") {
 		w.Header().Set("Content-Type", "video/mp2t")
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			re := regexp.MustCompile(`segment(\d+)\.ts`)
+			re := regexp.MustCompile(`/streams/([0-9a-f]{32})/v0/segment(\d+)\.ts`)
 			matches := re.FindStringSubmatch(path)
-			if len(matches) < 2 {
-				http.Error(w, "Invalid segment name", http.StatusBadRequest)
+			if len(matches) < 3 {
+				http.Error(w, "Invalid segment path", http.StatusBadRequest)
 				return
 			}
-			segNum, _ := strconv.Atoi(matches[1])
+			hash := matches[1] // MD5 hash from URL
+			segNum, _ := strconv.Atoi(matches[2])
 			startTime := segNum * 10
 			duration := 10
 
-			inputPath, err := fetchVideo(src) // Optimize this later
-			if err != nil {
-				http.Error(w, "Failed to fetch source video", http.StatusInternalServerError)
+			// Use hash to locate input file
+			inputPath := "/tmp/streams/" + hash + "/input.mp4"
+			if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+				http.Error(w, "Source video not found", http.StatusInternalServerError)
 				return
 			}
 
@@ -249,21 +264,17 @@ func serveHLSFiles(w http.ResponseWriter, r *http.Request) {
 func encodeChunk(inputPath, outputPath string, startTime, duration int) error {
 	return ffmpeg_go.Input(inputPath, ffmpeg_go.KwArgs{"ss": startTime}).
 		Output(outputPath, ffmpeg_go.KwArgs{
-			"t":   duration,  // Segment duration
-			"c:v": "libx264", // H.264 codec
-			"c:a": "aac",     // AAC audio
-			"f":   "mpegts",  // TS format for HLS
+			"t":      duration,
+			"c:v":    "libx264",
+			"crf":    "23",
+			"preset": "ultrafast",
+			"c:a":    "aac",
+			"f":      "mpegts",
 		}).
 		OverWriteOutput().Run()
 }
 
-// randomString generates a random string of the specified length using letters and numbers.
-func randomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
+func hashSrc(src string) string {
+	hash := md5.Sum([]byte(src))
+	return hex.EncodeToString(hash[:]) // 32-char hex string
 }
