@@ -13,7 +13,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to setup logging")
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/manifest", handlers.Manifest)
+	mux.HandleFunc("/manifest.m3u8", handlers.Manifest)
 	mux.HandleFunc("/playlist/", handlers.Playlist)
 	mux.HandleFunc("/segment/", handlers.Segment)
 	handler := handlers.CORSMiddleware(handlers.LoggerMiddleware(mux))

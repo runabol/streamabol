@@ -7,8 +7,9 @@ import (
 	"github.com/runabol/streamabol/stream"
 )
 
-// Manifest generates HLS playlists for the given video source
-// and returns the master playlist
+// Manifest handles requests for HLS manifest files
+// It generates a manifest file for the given source
+// and serves it to the client
 func Manifest(w http.ResponseWriter, r *http.Request) {
 	src := r.URL.Query().Get("src")
 	if src == "" {
