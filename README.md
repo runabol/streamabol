@@ -27,7 +27,7 @@ https://hls-player-demo.vercel.app?src=http://localhost:8080/manifest.m3u8?src=h
 
 ## URL Signing (Optional)
 
-You can sign Stremabol URLs to secure your video streams and prevent unauthorized access. This feature ensures that only clients with valid signed URLs can access the HLS manifests and video segments. When enabled, all incoming requests must include a valid `hmac` query parameter to be processed.
+You can sign Streamabol URLs to secure your video streams, prevent unauthorized access, and ensure URL integrity by preventing tampering. This feature ensures that only clients with valid signed URLs can access the HLS manifests and video segments. When enabled, all incoming requests must include a valid `hmac` query parameter to be processed.
 
 ### Enabling HMAC Verification
 To enable HMAC verification, set the `SECRET_KEY` environment variable to your desired secret key. If `SECRET_KEY` is not set, HMAC verification will be disabled.
