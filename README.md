@@ -7,7 +7,7 @@ Streamabol is a lightweight Golang application that converts video files into HL
 Streamabol can be run as a Docker container for easy deployment. The image includes the Go application and FFmpeg for video processing.
 
 ```bash
-docker run -p 8080:8080 -d --name=streamabol runabol/streamabol
+docker run -it --rm --name=streamabol -p 8080:8080 runabol/streamabol
 ```
 
 Access the HLS stream: [http://localhost:8080/manifest.m3u8?src=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4](http://localhost:8080/manifest.m3u8?src=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4)
