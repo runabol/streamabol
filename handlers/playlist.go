@@ -16,56 +16,53 @@ import (
 func Playlist(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/playlist")
 	fullPath := fmt.Sprintf("%s%s", baseDir, path)
+	log.Printf("Requested: %s", fullPath)
+	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		http.Error(w, "Playlist not found", http.StatusNotFound)
+		return
+	}
+	http.ServeFile(w, r, fullPath)
+}
+
+func Segment(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/segment")
+	fullPath := fmt.Sprintf("%s%s", baseDir, path)
 
 	log.Printf("Requested: %s", fullPath)
 
-	if strings.HasSuffix(path, ".m3u8") {
-		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			http.Error(w, "Playlist not found", http.StatusNotFound)
+	w.Header().Set("Content-Type", "video/mp2t")
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		re := regexp.MustCompile(`/([0-9a-f]{32})/v0/(\d+)\.ts`)
+		matches := re.FindStringSubmatch(path)
+		if len(matches) < 3 {
+			http.Error(w, "Invalid segment path", http.StatusBadRequest)
 			return
 		}
-		http.ServeFile(w, r, fullPath)
-		return
-	}
+		hash := matches[1] // MD5 hash from URL
+		segNum, _ := strconv.Atoi(matches[2])
+		startTime := segNum * 10
+		duration := 10
 
-	if strings.HasSuffix(path, ".ts") {
-		w.Header().Set("Content-Type", "video/mp2t")
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			re := regexp.MustCompile(`/([0-9a-f]{32})/v0/segment(\d+)\.ts`)
-			matches := re.FindStringSubmatch(path)
-			if len(matches) < 3 {
-				http.Error(w, "Invalid segment path", http.StatusBadRequest)
-				return
-			}
-			hash := matches[1] // MD5 hash from URL
-			segNum, _ := strconv.Atoi(matches[2])
-			startTime := segNum * 10
-			duration := 10
-
-			// Read the source URL from source.txt
-			sourceFile := baseDir + "/" + hash + "/source.txt"
-			src, err := os.ReadFile(sourceFile)
-			if err != nil {
-				http.Error(w, "Source URL not found", http.StatusInternalServerError)
-				return
-			}
-
-			segDir := filepath.Dir(fullPath)
-			os.MkdirAll(segDir, 0755)
-
-			log.Printf("Encoding chunk: %s (start: %d, duration: %d)", fullPath, startTime, duration)
-			err = encodeChunk(string(src), fullPath, startTime, duration)
-			if err != nil {
-				http.Error(w, "Failed to encode chunk", http.StatusInternalServerError)
-				return
-			}
+		// Read the source URL from source.txt
+		sourceFile := baseDir + "/" + hash + "/source.txt"
+		src, err := os.ReadFile(sourceFile)
+		if err != nil {
+			http.Error(w, "Source URL not found", http.StatusInternalServerError)
+			return
 		}
-		http.ServeFile(w, r, fullPath)
-		return
-	}
 
-	http.Error(w, "Not found", http.StatusNotFound)
+		segDir := filepath.Dir(fullPath)
+		os.MkdirAll(segDir, 0755)
+
+		log.Printf("Encoding chunk: %s (start: %d, duration: %d)", fullPath, startTime, duration)
+		err = encodeChunk(string(src), fullPath, startTime, duration)
+		if err != nil {
+			http.Error(w, "Failed to encode chunk", http.StatusInternalServerError)
+			return
+		}
+	}
+	http.ServeFile(w, r, fullPath)
 }
 
 func encodeChunk(src, outputPath string, startTime int, duration int) error {

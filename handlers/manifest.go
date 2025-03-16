@@ -109,7 +109,7 @@ func generateHLS(src, outputDir, hash string) error {
 			segDur = remaining
 		}
 		v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n")
-		v0Content.WriteString(fmt.Sprintf("/playlist/%s/v0/segment%d.ts\n", hash, i))
+		v0Content.WriteString(fmt.Sprintf("/segment/%s/v0/%d.ts\n", hash, i))
 	}
 	v0Content.WriteString("#EXT-X-ENDLIST\n")
 

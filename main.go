@@ -11,6 +11,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/manifest", handlers.Manifest)
 	mux.HandleFunc("/playlist/", handlers.Playlist)
+	mux.HandleFunc("/segment/", handlers.Segment)
 	handler := handlers.CORSMiddleware(mux)
 	log.Fatal(http.ListenAndServe(":8080", handler))
 }
