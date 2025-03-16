@@ -185,6 +185,7 @@ func generateHLS(inputPath string, baseDir string, src string) error {
 	v0Content.WriteString("#EXT-X-VERSION:3\n")
 	v0Content.WriteString("#EXT-X-TARGETDURATION:10\n")
 	v0Content.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
+	v0Content.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
 
 	for i := 0; i < numSegments; i++ {
 		remaining := duration - float64(i)*segmentDuration
@@ -261,17 +262,31 @@ func serveHLSFiles(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not found", http.StatusNotFound)
 }
 
-func encodeChunk(inputPath, outputPath string, startTime, duration int) error {
-	return ffmpeg_go.Input(inputPath, ffmpeg_go.KwArgs{"ss": startTime}).
+func encodeChunk(inputPath, outputPath string, startTime int, duration int) error {
+	log.Printf("Encoding %s: start=%d, duration=%d", outputPath, startTime, duration)
+	cmd := ffmpeg_go.Input(inputPath, ffmpeg_go.KwArgs{
+		"ss": startTime, // Seek to start time
+	}).
 		Output(outputPath, ffmpeg_go.KwArgs{
-			"t":      duration,
-			"c:v":    "libx264",
-			"crf":    "23",
-			"preset": "ultrafast",
-			"c:a":    "aac",
-			"f":      "mpegts",
+			"t":                duration,
+			"c:v":              "libx264",
+			"preset":           "ultrafast",
+			"c:a":              "aac",
+			"b:a":              "128k",
+			"f":                "mpegts",
+			"output_ts_offset": startTime,
 		}).
-		OverWriteOutput().Run()
+		OverWriteOutput()
+	// WithErrorOutput(os.Stderr)
+
+	log.Printf("FFmpeg command: %s", cmd.String())
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("Encode chunk error: %v", err)
+	} else {
+		log.Printf("Successfully encoded %s", outputPath)
+	}
+	return err
 }
 
 func hashSrc(src string) string {
