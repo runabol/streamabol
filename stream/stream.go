@@ -127,7 +127,7 @@ func generatePlaylist(src, outputDir, hash string) error {
 }
 
 func GetSegment(playlistID string, segNum int) (string, error) {
-	fullPath := fmt.Sprintf("%s/v0/%d.ts", baseDir, segNum)
+	fullPath := fmt.Sprintf("%s/%s/v0/%d.ts", baseDir, playlistID, segNum)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		startTime := segNum * 4
 		duration := 4
