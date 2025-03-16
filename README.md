@@ -10,7 +10,11 @@ To quickly get started with Streamabol, you can use the prebuilt Docker image:
 docker run -it --rm --name=streamabol -p 8080:8080 runabol/streamabol
 ```
 
-Access a sample HLS stream: [http://localhost:8080/manifest.m3u8?src=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4](http://localhost:8080/manifest.m3u8?src=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4)
+Access a sample HLS stream: 
+
+```bash
+http://localhost:8080/manifest.m3u8?src=http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4
+```
 
 ## Features
 - Converts video files to HLS streams dynamically
