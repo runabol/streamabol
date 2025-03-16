@@ -43,17 +43,16 @@ func GetManifest(src string) (string, error) {
 	// Check if we've already processed this src
 	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
 		// Store the URL in the output directory
-		err = os.MkdirAll(outputDir, 0755)
-		if err != nil {
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			return "", errors.Wrapf(err, "Failed to create directory")
-		}
-		// Write the source URL to a file
-		if err := os.WriteFile(sourceFile, []byte(src), 0644); err != nil {
-			return "", errors.Wrapf(err, "Failed to write source file")
 		}
 		// Generate playlists
 		if err := generatePlaylist(src, outputDir, hash); err != nil {
 			return "", errors.Wrapf(err, "Failed to generate playlist")
+		}
+		// Write the source URL to a file
+		if err := os.WriteFile(sourceFile, []byte(src), 0644); err != nil {
+			return "", errors.Wrapf(err, "Failed to write source file")
 		}
 	}
 
