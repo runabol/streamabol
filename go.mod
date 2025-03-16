@@ -2,10 +2,7 @@ module github.com/runabol/streamabol
 
 go 1.22.0
 
-require (
-	github.com/gorilla/mux v1.8.1
-	github.com/u2takey/ffmpeg-go v0.5.0
-)
+require github.com/u2takey/ffmpeg-go v0.5.0
 
 require (
 	github.com/aws/aws-sdk-go v1.38.20 // indirect
