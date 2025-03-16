@@ -274,10 +274,11 @@ func encodeChunk(inputPath, outputPath string, startTime int, duration int) erro
 			"c:a":              "aac",
 			"b:a":              "128k",
 			"f":                "mpegts",
+			"vf":               "scale=-2:720",
 			"output_ts_offset": startTime,
 		}).
-		OverWriteOutput()
-	// WithErrorOutput(os.Stderr)
+		OverWriteOutput().
+		WithErrorOutput(os.Stderr)
 
 	log.Printf("FFmpeg command: %s", cmd.String())
 	err := cmd.Run()
