@@ -44,7 +44,7 @@ Streamabol is a lightweight Golang application that converts video files into HL
    - `src`: The URL of the video file to convert (e.g., `.mp4`, `.mov`, etc.)
    - Response: An HLS manifest (`.m3u8`) with segmented streams generated on the fly.
 
-3. Use the generated `.m3u8` URL in an HLS-compatible player (e.g., VLC, HTML5 video with HLS.js).
+3. Use the generated `.m3u8` URL in an HLS-compatible player (e.g., [HLS.js](https://hlsjs.video-dev.org/)).
 
 ## Example
 ```bash
