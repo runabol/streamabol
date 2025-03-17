@@ -17,22 +17,6 @@ import (
 	ffmpego "github.com/u2takey/ffmpeg-go"
 )
 
-type streamInfo struct {
-	Duration string `json:"duration"`
-	Codec    string `json:"codec_name"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-}
-
-type formatInfo struct {
-	Duration string `json:"duration"`
-}
-
-type probeResult struct {
-	Streams []streamInfo `json:"streams"`
-	Format  formatInfo   `json:"format"`
-}
-
 type options struct{}
 
 type option func(*options)
@@ -191,13 +175,17 @@ func getDuration(src string) (float64, error) {
 		log.Error().Err(err).Msgf("Probe error: %v", err)
 		return 0, err
 	}
-
+	type formatInfo struct {
+		Duration string `json:"duration"`
+	}
+	type probeResult struct {
+		Format formatInfo `json:"format"`
+	}
 	var result probeResult
 	if err := json.Unmarshal([]byte(output), &result); err != nil {
 		log.Error().Err(err).Msgf("Unmarshal error: %v", err)
 		return 0, err
 	}
-
 	duration, err := strconv.ParseFloat(result.Format.Duration, 64)
 	if err != nil {
 		log.Error().Err(err).Msgf("Duration parse error: %v", err)
