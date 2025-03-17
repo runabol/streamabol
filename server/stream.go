@@ -18,8 +18,7 @@ import (
 )
 
 func (s *Server) getManifest(src string) (string, error) {
-	checksum := md5.Sum([]byte(src))
-	hash := hex.EncodeToString(checksum[:])
+	hash := md5Hash(src)
 	outputDir := fmt.Sprintf("%s/%s", s.BaseDir, hash)
 	sourceFile := path.Join(outputDir, "source.txt")
 
@@ -28,7 +27,7 @@ func (s *Server) getManifest(src string) (string, error) {
 		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			return "", errors.Wrapf(err, "Failed to create directory")
 		}
-		if err := s.generatePlaylist(src, outputDir, hash); err != nil {
+		if err := s.generatePlaylist(src, outputDir); err != nil {
 			return "", errors.Wrapf(err, "Failed to generate playlist")
 		}
 		if err := os.WriteFile(sourceFile, []byte(src), 0644); err != nil {
@@ -47,7 +46,7 @@ func (s *Server) getPlaylist(id string) (string, error) {
 	return fullPath, nil
 }
 
-func (s *Server) generatePlaylist(src, outputDir, hash string) error {
+func (s *Server) generatePlaylist(src, outputDir string) error {
 	duration, err := getDuration(src)
 	if err != nil {
 		return err
@@ -56,7 +55,7 @@ func (s *Server) generatePlaylist(src, outputDir, hash string) error {
 	if err := os.MkdirAll(outputDir+"/v0", 0755); err != nil {
 		return errors.Wrapf(err, "Failed to create directory: %s", outputDir+"/v0")
 	}
-
+	hash := md5Hash(src)
 	signature := hmac.Generate(fmt.Sprintf("/playlist/%s/v0.m3u8", hash), s.SecretKey)
 	// Write master.m3u8 with relative path
 	masterContent := fmt.Sprintf(`#EXTM3U
@@ -183,4 +182,9 @@ func getDuration(src string) (float64, error) {
 		return 0, err
 	}
 	return duration, nil
+}
+
+func md5Hash(s string) string {
+	checksum := md5.Sum([]byte(s))
+	return hex.EncodeToString(checksum[:])
 }
