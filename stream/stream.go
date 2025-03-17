@@ -13,11 +13,12 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"github.com/runabol/streamabol/env"
 	"github.com/runabol/streamabol/hmac"
 	ffmpego "github.com/u2takey/ffmpeg-go"
 )
 
-var baseDir = path.Join(os.TempDir(), "streamabol")
+var baseDir = env.Get("BASE_DIR", os.TempDir())
 
 type streamInfo struct {
 	Duration string `json:"duration"`
@@ -36,6 +37,7 @@ type probeResult struct {
 }
 
 func GetManifest(src, secretKey string) (string, error) {
+
 	checksum := md5.Sum([]byte(src))
 	hash := hex.EncodeToString(checksum[:]) // 32-char hex string
 	outputDir := fmt.Sprintf("%s/%s", baseDir, hash)

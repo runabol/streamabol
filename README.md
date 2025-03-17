@@ -93,5 +93,14 @@ export SECRET_KEY="7f9c2ba4e8b9d3f0c1e5a7b6d8f9e0c2a3b4c5d6e7f8a9b0c1d2e3f4a5b6d
    go build -o streamabol
    ```
 
+## Environment Variables
+
+| Variable      | Description                                 | Default Value |
+|---------------|---------------------------------------------|---------------|
+| `BASE_DIR`    | The base directory where streams are stored | `os.TempDir()`  |
+| `LOG_FORMAT`  | Possible values are `pretty` and `json`     | `pretty` |
+| `LOG_LEVEL`   | Possible values are `debug`, `info`, `warn`, `error`, and `fatal`. | `debug`
+| `SECRET_KEY`  | Secret key used for HMAC verification       | None          |
+
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
