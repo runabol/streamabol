@@ -6,13 +6,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/runabol/streamabol/stream"
 )
 
 type Server struct {
 	Address   string
 	SecretKey string
+	BaseDir   string
 }
 
 func (s *Server) Start() error {
@@ -39,7 +38,7 @@ func (s *Server) Manifest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing src parameter", http.StatusBadRequest)
 		return
 	}
-	manifest, err := stream.GetManifest(src, s.SecretKey)
+	manifest, err := s.getManifest(src)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to generate manifest: %v", err), http.StatusInternalServerError)
 		return
@@ -54,7 +53,7 @@ func (s *Server) Playlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/playlist"), "/v0.m3u8")
-	playlist, error := stream.GetPlaylist(id)
+	playlist, error := s.getPlaylist(id)
 	if error != nil {
 		http.Error(w, "Playlist not found", http.StatusNotFound)
 		return
@@ -81,7 +80,7 @@ func (s *Server) Segment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid segment number", http.StatusBadRequest)
 		return
 	}
-	seg, err := stream.GetSegment(playlistID, segNum)
+	seg, err := s.getSegment(playlistID, segNum)
 	if err != nil {
 		http.Error(w, "Failed to get segment", http.StatusInternalServerError)
 		return

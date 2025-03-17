@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/rs/zerolog/log"
 	"github.com/runabol/streamabol/env"
 	"github.com/runabol/streamabol/logging"
@@ -16,6 +18,7 @@ func main() {
 	srv := server.Server{
 		Address:   address,
 		SecretKey: env.Get("SECRET_KEY", ""),
+		BaseDir:   env.Get("BASE_DIR", os.TempDir()),
 	}
 	if err := srv.Start(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start server")

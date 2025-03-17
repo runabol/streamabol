@@ -1,4 +1,4 @@
-package stream
+package server
 
 import (
 	"crypto/md5"
@@ -13,12 +13,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	"github.com/runabol/streamabol/env"
 	"github.com/runabol/streamabol/hmac"
 	ffmpego "github.com/u2takey/ffmpeg-go"
 )
-
-var baseDir = env.Get("BASE_DIR", os.TempDir())
 
 type streamInfo struct {
 	Duration string `json:"duration"`
@@ -36,11 +33,19 @@ type probeResult struct {
 	Format  formatInfo   `json:"format"`
 }
 
-func GetManifest(src, secretKey string) (string, error) {
+type options struct{}
+
+type option func(*options)
+
+func (s *Server) getManifest(src string, opts ...option) (string, error) {
+	options := options{}
+	for _, opt := range opts {
+		opt(&options)
+	}
 
 	checksum := md5.Sum([]byte(src))
 	hash := hex.EncodeToString(checksum[:]) // 32-char hex string
-	outputDir := fmt.Sprintf("%s/%s", baseDir, hash)
+	outputDir := fmt.Sprintf("%s/%s", s.BaseDir, hash)
 	sourceFile := path.Join(outputDir, "source.txt")
 
 	// Check if we've already processed this src
@@ -50,7 +55,7 @@ func GetManifest(src, secretKey string) (string, error) {
 			return "", errors.Wrapf(err, "Failed to create directory")
 		}
 		// Generate playlists
-		if err := generatePlaylist(src, outputDir, hash, secretKey); err != nil {
+		if err := s.generatePlaylist(src, outputDir, hash, options); err != nil {
 			return "", errors.Wrapf(err, "Failed to generate playlist")
 		}
 		// Write the source URL to a file
@@ -59,18 +64,18 @@ func GetManifest(src, secretKey string) (string, error) {
 		}
 	}
 
-	return fmt.Sprintf("%s/%s/master.m3u8", baseDir, hash), nil
+	return fmt.Sprintf("%s/%s/master.m3u8", s.BaseDir, hash), nil
 }
 
-func GetPlaylist(id string) (string, error) {
-	fullPath := fmt.Sprintf("%s/%s/v0.m3u8", baseDir, id)
+func (s *Server) getPlaylist(id string) (string, error) {
+	fullPath := fmt.Sprintf("%s/%s/v0.m3u8", s.BaseDir, id)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		return "", errors.Errorf("Playlist not found")
 	}
 	return fullPath, nil
 }
 
-func generatePlaylist(src, outputDir, hash, secretKey string) error {
+func (s *Server) generatePlaylist(src, outputDir, hash string, opts options) error {
 	duration, err := getDuration(src)
 	if err != nil {
 		return err
@@ -80,7 +85,7 @@ func generatePlaylist(src, outputDir, hash, secretKey string) error {
 		return errors.Wrapf(err, "Failed to create directory: %s", outputDir+"/v0")
 	}
 
-	signature := hmac.Generate(fmt.Sprintf("/playlist/%s/v0.m3u8", hash), secretKey)
+	signature := hmac.Generate(fmt.Sprintf("/playlist/%s/v0.m3u8", hash), s.SecretKey)
 	// Write master.m3u8 with relative path
 	masterContent := fmt.Sprintf(`#EXTM3U
 #EXT-X-VERSION:3
@@ -115,7 +120,7 @@ func generatePlaylist(src, outputDir, hash, secretKey string) error {
 		if _, err := v0Content.WriteString("#EXTINF:" + strconv.FormatFloat(segDur, 'f', 3, 64) + ",\n"); err != nil {
 			return errors.Wrapf(err, "Failed to write segment duration: %v", err)
 		}
-		signature := hmac.Generate(fmt.Sprintf("/segment/%s/v0/%d.ts", hash, i), secretKey)
+		signature := hmac.Generate(fmt.Sprintf("/segment/%s/v0/%d.ts", hash, i), s.SecretKey)
 		if _, err := v0Content.WriteString(fmt.Sprintf("/segment/%s/v0/%d.ts?hmac=%s\n", hash, i, signature)); err != nil {
 			return errors.Wrapf(err, "Failed to write segment entry: %v", err)
 		}
@@ -130,14 +135,14 @@ func generatePlaylist(src, outputDir, hash, secretKey string) error {
 	return nil
 }
 
-func GetSegment(playlistID string, segNum int) (string, error) {
-	fullPath := fmt.Sprintf("%s/%s/v0/%d.ts", baseDir, playlistID, segNum)
+func (s *Server) getSegment(playlistID string, segNum int) (string, error) {
+	fullPath := fmt.Sprintf("%s/%s/v0/%d.ts", s.BaseDir, playlistID, segNum)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		startTime := segNum * 4
 		duration := 4
 
 		// Read the source URL from source.txt
-		sourceFile := fmt.Sprintf("%s/%s/source.txt", baseDir, playlistID)
+		sourceFile := fmt.Sprintf("%s/%s/source.txt", s.BaseDir, playlistID)
 		src, err := os.ReadFile(sourceFile)
 		if err != nil {
 			return "", errors.Wrapf(err, "Source URL not found")
