@@ -17,16 +17,7 @@ import (
 	ffmpego "github.com/u2takey/ffmpeg-go"
 )
 
-type options struct{}
-
-type option func(*options)
-
-func (s *Server) getManifest(src string, opts ...option) (string, error) {
-	options := options{}
-	for _, opt := range opts {
-		opt(&options)
-	}
-
+func (s *Server) getManifest(src string) (string, error) {
 	checksum := md5.Sum([]byte(src))
 	hash := hex.EncodeToString(checksum[:])
 	outputDir := fmt.Sprintf("%s/%s", s.BaseDir, hash)
@@ -37,7 +28,7 @@ func (s *Server) getManifest(src string, opts ...option) (string, error) {
 		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			return "", errors.Wrapf(err, "Failed to create directory")
 		}
-		if err := s.generatePlaylist(src, outputDir, hash, options); err != nil {
+		if err := s.generatePlaylist(src, outputDir, hash); err != nil {
 			return "", errors.Wrapf(err, "Failed to generate playlist")
 		}
 		if err := os.WriteFile(sourceFile, []byte(src), 0644); err != nil {
@@ -56,7 +47,7 @@ func (s *Server) getPlaylist(id string) (string, error) {
 	return fullPath, nil
 }
 
-func (s *Server) generatePlaylist(src, outputDir, hash string, opts options) error {
+func (s *Server) generatePlaylist(src, outputDir, hash string) error {
 	duration, err := getDuration(src)
 	if err != nil {
 		return err
