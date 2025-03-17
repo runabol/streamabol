@@ -7,14 +7,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/runabol/streamabol/env"
 )
 
 func Setup() error {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	level := os.Getenv("LOG_LEVEL")
-	if level == "" {
-		level = "debug"
-	}
+	level := env.Get("LOG_LEVEL", "debug")
 	logLevel := strings.ToLower(level)
 	// setup log level
 	switch logLevel {
@@ -30,10 +28,7 @@ func Setup() error {
 		return errors.Errorf("invalid logging level: %s", logLevel)
 	}
 	// setup log format (pretty / json)
-	format := os.Getenv("LOG_FORMAT")
-	if format == "" {
-		format = "pretty"
-	}
+	format := env.Get("LOG_FORMAT", "pretty")
 	logFormat := strings.ToLower(format)
 	switch logFormat {
 	case "pretty":
