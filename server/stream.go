@@ -44,21 +44,18 @@ func (s *Server) getManifest(src string, opts ...option) (string, error) {
 	}
 
 	checksum := md5.Sum([]byte(src))
-	hash := hex.EncodeToString(checksum[:]) // 32-char hex string
+	hash := hex.EncodeToString(checksum[:])
 	outputDir := fmt.Sprintf("%s/%s", s.BaseDir, hash)
 	sourceFile := path.Join(outputDir, "source.txt")
 
 	// Check if we've already processed this src
 	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
-		// Store the URL in the output directory
 		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			return "", errors.Wrapf(err, "Failed to create directory")
 		}
-		// Generate playlists
 		if err := s.generatePlaylist(src, outputDir, hash, options); err != nil {
 			return "", errors.Wrapf(err, "Failed to generate playlist")
 		}
-		// Write the source URL to a file
 		if err := os.WriteFile(sourceFile, []byte(src), 0644); err != nil {
 			return "", errors.Wrapf(err, "Failed to write source file")
 		}
